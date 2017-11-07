@@ -19,10 +19,12 @@ import Data.Time.Format
 import Text.Printf
 import Network.HTTP.Conduit
 import Data.Aeson
+import Data.Aeson.Text (encodeToLazyText)
 import Control.Monad.Trans.Resource (runResourceT)
 import Data.ByteString.Char8 (ByteString(..), pack, unpack)
 import qualified Data.Map as Map
 import qualified Data.List as L
+import Data.Text.Lazy.IO as I
 
 import Config
 import Util
@@ -90,6 +92,7 @@ logOne conf (WorkLog d i h) = do
                   { method = "POST"
                   , requestBody = (RequestBodyLBS (encode json))
                   }
+  I.writeFile "myfile.json" (encodeToLazyText json)
   manager <- newManager tlsManagerSettings
   runResourceT $ do
     response <- http request manager
