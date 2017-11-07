@@ -37,7 +37,9 @@ instance Show WorkLog where
   show (WorkLog d i h) = printf "%s - %s - %.1f hours" (show d) i h
 
 
-data IssueJson = IssueJson { key :: String } deriving Generic
+data IssueJson = IssueJson { key                      :: String
+                           , remainingEstimateSeconds :: Float
+                           } deriving Generic
 instance FromJSON IssueJson
 instance ToJSON IssueJson
 
@@ -45,10 +47,11 @@ data AuthorJson = AuthorJson { name :: String } deriving Generic
 instance FromJSON AuthorJson
 instance ToJSON AuthorJson
 
-data WorkLogJson = WorkLogJson { issue            :: IssueJson
-                               , dateStarted      :: String
-                               , timeSpentSeconds :: Float
-                               , author           :: AuthorJson
+data WorkLogJson = WorkLogJson { issue             :: IssueJson
+                               , dateStarted       :: String
+                               , timeSpentSeconds  :: Float
+                               , author            :: AuthorJson
+                               , comment           :: String
                                } deriving Generic
 instance FromJSON WorkLogJson
 instance ToJSON WorkLogJson
@@ -68,7 +71,7 @@ getTimeLogged conf s e = do
   response <- runResourceT $ httpLbs request manager
   let maybeJsonWorklogs = decode (responseBody response) :: Maybe [WorkLogJson]
       jsonWorkLogs  = fromJust maybeJsonWorklogs
-      worklogsAsPairs = map (\(WorkLogJson _ d t _) -> (parseIsoDate d, t/3600.0)) jsonWorkLogs
+      worklogsAsPairs = map (\(WorkLogJson _ d t _ _) -> (parseIsoDate d, t/3600.0)) jsonWorkLogs
       pairsByDate = L.groupBy ((==) `on` fst) worklogsAsPairs
       worklogsByDate = foldl (\m ws@((d,_):_) -> Map.insert d (map snd ws) m) Map.empty pairsByDate
   return $ Map.map sum worklogsByDate
@@ -82,7 +85,7 @@ logOne :: Config -> WorkLog -> IO ()
 logOne conf (WorkLog d i h) = do
   request'' <- worklogsUrl conf
   let request' = applyBasicAuth (getJiraUser conf) (getJiraPassword conf) request''
-      json = WorkLogJson (IssueJson i) (datefmt d) (h*3600.0) (AuthorJson $ unpack (getJiraUser conf))
+      json = WorkLogJson (IssueJson i 0.0) (datefmt d) (h*3600.0) (AuthorJson $ unpack (getJiraUser conf)) ("work")
       request = request'
                   { method = "POST"
                   , requestBody = (RequestBodyLBS (encode json))
